@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>ESP32 → NB-IoT → Vercel → HTML</title>
+</head>
+<body>
+  <h2>实时数据</h2>
+  <div id="log"></div>
+
+  <script>
+    async function fetchData() {
+      const res = await fetch("/api/data");
+      const data = await res.json();
+      document.getElementById("log").innerHTML =
+        "最新数据: " + JSON.stringify(data);
+    }
+
+    setInterval(fetchData, 3000); // 每 3 秒刷新
+  </script>
+</body>
+</html>
