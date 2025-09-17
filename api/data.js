@@ -1,16 +1,19 @@
-let latestData = { value: null, time: null };
+// 简单内存存储，重启会丢失，生产可用数据库
+let dataStore = [];
 
 export default function handler(req, res) {
   if (req.method === "POST") {
-    // 从 ESP32/NB-IoT 上传的数据
     const { value } = req.body;
-    latestData = { value, time: Date.now() };
-    console.log("收到:", latestData);
-    res.status(200).json({ ok: true });
+    if (value !== undefined) {
+      const record = { value, time: new Date().toISOString() };
+      dataStore.push(record);
+      return res.status(200).json({ message: "Data received", record });
+    }
+    return res.status(400).json({ message: "Invalid data" });
   } else if (req.method === "GET") {
-    // 给网页读取最新数据
-    res.status(200).json(latestData);
+    return res.status(200).json(dataStore);
   } else {
-    res.status(405).json({ error: "Method not allowed" });
+    res.setHeader("Allow", ["GET", "POST"]);
+    return res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }
