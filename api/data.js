@@ -1,4 +1,4 @@
-// 简单内存存储，重启会丢失，生产可用数据库
+// api/data.js
 let dataStore = [];
 
 export default function handler(req, res) {
