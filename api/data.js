@@ -1,16 +1,20 @@
-let latestData = { value: null, time: null };
+let latestData = { message: "尚未收到数据" };
 
 export default function handler(req, res) {
-  if (req.method === "POST") {
-    // 从 ESP32/NB-IoT 上传的数据
-    const { value } = req.body;
-    latestData = { value, time: Date.now() };
-    console.log("收到:", latestData);
-    res.status(200).json({ ok: true });
-  } else if (req.method === "GET") {
-    // 给网页读取最新数据
-    res.status(200).json(latestData);
-  } else {
-    res.status(405).json({ error: "Method not allowed" });
-  }
+    if (req.method === "POST") {
+        // 接收 ESP32/NB-IoT 模块发送的 JSON 数据
+        let body = "";
+        req.on("data", chunk => body += chunk);
+        req.on("end", () => {
+            try {
+                latestData = JSON.parse(body);
+                res.status(200).json({ status: "ok" });
+            } catch (err) {
+                res.status(400).json({ status: "error", message: err.message });
+            }
+        });
+    } else {
+        // GET 请求返回最新数据
+        res.status(200).json(latestData);
+    }
 }
