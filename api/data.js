@@ -2,7 +2,6 @@ let latestData = { message: "尚未收到数据" };
 
 export default function handler(req, res) {
     if (req.method === "POST") {
-        // 接收 ESP32/NB-IoT 模块发送的 JSON 数据
         let body = "";
         req.on("data", chunk => body += chunk);
         req.on("end", () => {
