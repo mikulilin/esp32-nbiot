@@ -1,22 +1,33 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh">
 <head>
-  <meta charset="utf-8">
-  <title>ESP32 → NB-IoT → Vercel → HTML</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32 NB-IoT 数据展示</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    li { margin-bottom: 5px; }
+  </style>
 </head>
 <body>
-  <h2>实时数据</h2>
-  <div id="log"></div>
+  <h1>ESP32 NB-IoT 数据</h1>
+  <ul id="dataList"></ul>
 
   <script>
     async function fetchData() {
-      const res = await fetch("/api/data");
+      const res = await fetch('/api/data');
       const data = await res.json();
-      document.getElementById("log").innerHTML =
-        "最新数据: " + JSON.stringify(data);
+      const list = document.getElementById('dataList');
+      list.innerHTML = "";
+      data.forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = `${item.time}: ${item.value}`;
+        list.appendChild(li);
+      });
     }
 
-    setInterval(fetchData, 3000); // 每 3 秒刷新
+    setInterval(fetchData, 5000); // 每5秒刷新一次
+    fetchData();
   </script>
 </body>
 </html>
