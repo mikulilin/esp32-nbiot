@@ -1,19 +1,18 @@
-// api/data.js
-let dataStore = [];
+let latestData = { message: "尚未收到数据" };
 
 export default function handler(req, res) {
   if (req.method === "POST") {
-    const { value } = req.body;
-    if (value !== undefined) {
-      const record = { value, time: new Date().toISOString() };
-      dataStore.push(record);
-      return res.status(200).json({ message: "Data received", record });
-    }
-    return res.status(400).json({ message: "Invalid data" });
-  } else if (req.method === "GET") {
-    return res.status(200).json(dataStore);
+    let body = "";
+    req.on("data", chunk => (body += chunk));
+    req.on("end", () => {
+      try {
+        latestData = JSON.parse(body);  // 保存最新的数据
+        res.status(200).json({ status: "ok" });
+      } catch (err) {
+        res.status(400).json({ status: "error", message: err.message });
+      }
+    });
   } else {
-    res.setHeader("Allow", ["GET", "POST"]);
-    return res.status(405).end(`Method ${req.method} Not Allowed`);
+    res.status(200).json(latestData);  // GET 返回最新的数据
   }
 }
