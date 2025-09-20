@@ -1,18 +1,22 @@
-let latestData = { message: "尚未收到数据" };
+// api/data.js
+import fetch from "node-fetch";
 
-export default function handler(req, res) {
-  if (req.method === "POST") {
-    let body = "";
-    req.on("data", chunk => (body += chunk));
-    req.on("end", () => {
-      try {
-        latestData = JSON.parse(body);  // 保存最新的数据
-        res.status(200).json({ status: "ok" });
-      } catch (err) {
-        res.status(400).json({ status: "error", message: err.message });
+export default async function handler(req, res) {
+  const PRODUCT_ID = process.env.ONENET_PRODUCT_ID;   // Vercel 环境变量
+  const DEVICE_NAME = process.env.ONENET_DEVICE_NAME; // Vercel 环境变量
+  const API_KEY = process.env.ONENET_API_KEY;         // OneNET 北向 API Key
+
+  const url = `https://iot-api.heclouds.com/datapoint/history-datapoints?product_id=${PRODUCT_ID}&device_name=${DEVICE_NAME}&datastream_id=Latitude,Longitude&limit=1&sort=DESC`;
+
+  try {
+    const oneRes = await fetch(url, {
+      headers: {
+        "Authorization": API_KEY
       }
     });
-  } else {
-    res.status(200).json(latestData);  // GET 返回最新的数据
+    const data = await oneRes.json();
+    res.status(200).json(data);
+  } catch (err) {
+    res.status(500).json({ error: "OneNET API request failed", details: err.message });
   }
 }
