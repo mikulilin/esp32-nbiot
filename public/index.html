@@ -1,33 +1,43 @@
-<!DOCTYPE html>
-<html lang="zh">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ESP32 NB-IoT 数据展示</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    li { margin-bottom: 5px; }
-  </style>
-</head>
-<body>
-  <h1>ESP32 NB-IoT 数据</h1>
-  <ul id="dataList"></ul>
+import { useState, useEffect } from "react";
 
-  <script>
+export default function Home() {
+  const [lat, setLat] = useState(null);
+  const [lng, setLng] = useState(null);
+
+  useEffect(() => {
     async function fetchData() {
-      const res = await fetch('/api/data');
-      const data = await res.json();
-      const list = document.getElementById('dataList');
-      list.innerHTML = "";
-      data.forEach(item => {
-        const li = document.createElement('li');
-        li.textContent = `${item.time}: ${item.value}`;
-        list.appendChild(li);
-      });
+      try {
+        const res = await fetch("/api/data");  // 调用 data.js
+        const data = await res.json();
+        if (data.data && data.data.datastreams) {
+          const streams = data.data.datastreams;
+          const latitude = streams.find(s => s.id === "Latitude")?.datapoints[0]?.value;
+          const longitude = streams.find(s => s.id === "Longitude")?.datapoints[0]?.value;
+          if (latitude && longitude) {
+            setLat(latitude);
+            setLng(longitude);
+          }
+        }
+      } catch (err) {
+        console.error("Fetch failed:", err);
+      }
     }
-
-    setInterval(fetchData, 5000); // 每5秒刷新一次
     fetchData();
-  </script>
-</body>
-</html>
+    const interval = setInterval(fetchData, 5000); // 每 5 秒刷新
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+      <h1 className="text-2xl font-bold mb-4">OneNET 实时坐标</h1>
+      {lat && lng ? (
+        <div className="text-lg">
+          <p>纬度 (Latitude): {lat}</p>
+          <p>经度 (Longitude): {lng}</p>
+        </div>
+      ) : (
+        <p className="text-gray-500">正在获取数据...</p>
+      )}
+    </div>
+  );
+}
