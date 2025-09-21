@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP32 GPS 轨迹显示</title>
+<script src="https://webapi.amap.com/maps?v=2.0&key=99aaad9da054b71f551fb168b5a88088"></script>
+<style>
+  html, body { height:100%; margin:0; }
+  #mapContainer { width:100%; height:100%; }
+  #controls {
+    position: absolute;
+    top: 10px; left: 10px;
+    background: rgba(255,255,255,0.9);
+    padding: 10px; border-radius:5px;
+    z-index: 999;
+  }
+  #controls div { margin-bottom:5px; }
+  button { margin-right:5px; }
+</style>
+</head>
+<body>
+<div id="mapContainer"></div>
+<div id="controls">
+  <div id="status">状态: 未连接</div>
+  <div id="longitude">经度: --</div>
+  <div id="latitude">纬度: --</div>
+  <div id="time">时间: --</div>
+  <button id="connectBtn">连接 ESP32</button>
+  <button id="disconnectBtn">断开连接</button>
+  <button id="simulateBtn">开始模拟</button>
+  <button onclick="clearPath()">清除轨迹</button>
+</div>
+
+<script>
+  const defaultPos = [108.073, 34.280];
+  let path = [];
+  let simulating = false;
+  let connected = false;
+  let following = false;
+
+  const map = new AMap.Map('mapContainer', { zoom:16, center:defaultPos });
+  const marker = new AMap.Marker({ position:defaultPos, map:map });
+  const polyline = new AMap.Polyline({ path:[defaultPos], strokeColor:"#FF0000", strokeWeight:4, map:map });
+
+  const statusDiv = document.getElementById('status');
+  const connectBtn = document.getElementById('connectBtn');
+  const disconnectBtn = document.getElementById('disconnectBtn');
+  const simulateBtn = document.getElementById('simulateBtn');
+
+  function clearPath() {
+    path = [];
+    polyline.setPath([defaultPos]);
+    marker.setPosition(defaultPos);
+    map.setCenter(defaultPos);
+  }
+
+  simulateBtn.onclick = () => {
+    simulating = !simulating;
+    simulateBtn.innerText = simulating ? "停止模拟" : "开始模拟";
+    if (simulating) {
+      connected = false;
+      following = false;
+      statusDiv.innerText = "状态: 模拟中";
+    } else {
+      marker.setPosition(defaultPos);
+      map.setCenter(defaultPos);
+      path = [];
+    }
+  }
+
+  connectBtn.onclick = async () => {
+    if (simulating) return; // 模拟状态下不连接 ESP32
+
+    try {
+      const res = await fetch('/api/gps');
+      if (!res.ok) throw new Error("请求失败");
+      const data = await res.json();
+      if (data.longitude == null || data.latitude == null) {
+        connected = false;
+        following = false;
+        statusDiv.innerText = "状态: 未连接（ESP32 未上传数据）";
+      } else {
+        connected = true;
+        following = true;
+        statusDiv.innerText = "状态: 已连接 ESP32";
+        updateMarker(data);
+      }
+    } catch (e) {
+      connected = false;
+      following = false;
+      statusDiv.innerText = "状态: 连接失败";
+    }
+  }
+
+  disconnectBtn.onclick = () => {
+    following = false;
+    connected = false;
+    statusDiv.innerText = "状态: 已断开连接";
+  }
+
+  function updateMarker(gps) {
+    const pos = [parseFloat(gps.longitude), parseFloat(gps.latitude)];
+    marker.setPosition(pos);
+    map.setCenter(pos);
+    path.push(pos);
+    polyline.setPath(path);
+
+    document.getElementById('longitude').innerText = `经度: ${pos[0].toFixed(6)}`;
+    document.getElementById('latitude').innerText = `纬度: ${pos[1].toFixed(6)}`;
+    document.getElementById('time').innerText = `时间: ${gps.eventTime}`;
+  }
+
+  async function fetchData() {
+    if (simulating) {
+      // 模拟数据独立移动
+      const lastPos = path.length ? path[path.length-1] : defaultPos;
+      const delta = 0.0005;
+      return {
+        longitude: lastPos[0] + (Math.random()-0.5)*delta,
+        latitude: lastPos[1] + (Math.random()-0.5)*delta,
+        eventTime: new Date().toISOString()
+      };
+    }
+
+    if (following && connected) {
+      try {
+        const res = await fetch('/api/gps');
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (data.longitude == null || data.latitude == null) return null;
+        return data;
+      } catch (e) {
+        console.warn("获取ESP32数据失败:", e);
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  async function updateMap() {
+    const gps = await fetchData();
+    if (gps) updateMarker(gps);
+  }
+
+  setInterval(updateMap, 1000);
+</script>
+</body>
+</html>
