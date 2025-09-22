@@ -50,12 +50,12 @@ const connectBtn = document.getElementById('connectBtn');
 const disconnectBtn = document.getElementById('disconnectBtn');
 const simulateBtn = document.getElementById('simulateBtn');
 
+// 清除轨迹和标记
 function clearPath() {
     path = [];
     polyline.setPath([defaultPos]);
     marker.setPosition(defaultPos);
     map.setCenter(defaultPos);
-    // 清除所有点标记
     markers.forEach(m => m.setMap(null));
     markers = [];
 }
@@ -68,7 +68,10 @@ simulateBtn.onclick = () => {
         connected = false;
         following = false;
         statusDiv.innerText = "状态: 模拟中";
+        if (intervalId) clearInterval(intervalId);
+        intervalId = setInterval(simulateMove, 1000); // 每秒更新模拟点
     } else {
+        if (intervalId) { clearInterval(intervalId); intervalId = null; }
         marker.setPosition(defaultPos);
         map.setCenter(defaultPos);
         path = [];
@@ -77,9 +80,9 @@ simulateBtn.onclick = () => {
     }
 }
 
-// 点击连接 ESP32
+// ESP32 连接按钮
 connectBtn.onclick = async () => {
-    if (simulating) return;
+    if (simulating) return; // 模拟模式下不连接 ESP32
 
     try {
         const latest = await fetchLatestGPS();
@@ -92,10 +95,9 @@ connectBtn.onclick = async () => {
         connected = true;
         following = true;
         statusDiv.innerText = "状态: 已连接 ESP32";
-        path = [[latest.lon, latest.lat]]; // 以最新点为起点
+        path = [[latest.lon, latest.lat]]; // 最新点为起点
         updateMarker(latest);
 
-        // 每5秒自动获取最新点
         if (intervalId) clearInterval(intervalId);
         intervalId = setInterval(async () => {
             const gps = await fetchLatestGPS();
@@ -110,15 +112,12 @@ connectBtn.onclick = async () => {
     }
 }
 
-// 点击断开连接
+// 断开连接
 disconnectBtn.onclick = () => {
     following = false;
     connected = false;
     statusDiv.innerText = "状态: 已断开连接";
-    if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
-    }
+    if (intervalId) { clearInterval(intervalId); intervalId = null; }
 }
 
 // 获取最新 GPS 数据
@@ -138,39 +137,44 @@ async function fetchLatestGPS() {
 // 更新地图标记和轨迹
 function updateMarker(gps) {
     const pos = [parseFloat(gps.lon), parseFloat(gps.lat)];
-
-    // 更新折线轨迹
     path.push(pos);
     polyline.setPath(path);
 
-    // 更新主标记位置（居中）
+    // 更新主标记位置
     marker.setPosition(pos);
     map.setCenter(pos);
 
-    // 添加单独的点标记，鼠标悬停显示时间
+    // 添加独立标记，鼠标悬停显示时间
     const pointMarker = new AMap.Marker({
         position: pos,
         map: map,
         title: `时间: ${gps.time}`,
         icon: new AMap.Icon({
             size: new AMap.Size(8,8),
-            image: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png',
+            image:'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png',
             imageSize: new AMap.Size(8,8)
         })
     });
-
-    const infoWindow = new AMap.InfoWindow({
-        content: `时间: ${gps.time}`,
-        offset: new AMap.Pixel(0, -10)
-    });
+    const infoWindow = new AMap.InfoWindow({ content: `时间: ${gps.time}`, offset: new AMap.Pixel(0, -10) });
     pointMarker.on('mouseover', () => infoWindow.open(map, pos));
-
     markers.push(pointMarker);
 
-    // 更新界面信息
+    // 更新信息面板
     document.getElementById('longitude').innerText = `经度: ${pos[0].toFixed(6)}`;
     document.getElementById('latitude').innerText = `纬度: ${pos[1].toFixed(6)}`;
     document.getElementById('time').innerText = `时间: ${gps.time}`;
+}
+
+// 模拟移动函数
+function simulateMove() {
+    const lastPos = path.length ? path[path.length-1] : defaultPos;
+    const delta = 0.0005;
+    const simPos = {
+        lon: lastPos[0] + (Math.random()-0.5)*delta,
+        lat: lastPos[1] + (Math.random()-0.5)*delta,
+        time: new Date().toISOString()
+    };
+    updateMarker(simPos);
 }
 </script>
 </body>
