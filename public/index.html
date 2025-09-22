@@ -3,18 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GPS 轨迹显示</title>
+<title>GPS 实时轨迹</title>
 <style>
   #mapContainer { width: 100%; height: 90vh; }
   #controls { padding: 10px; text-align: center; }
   button { margin: 5px; padding: 10px 20px; font-size: 16px; }
 </style>
-<!-- 高德地图 JS API -->
 <script src="https://webapi.amap.com/maps?v=2.0&key=99aaad9da054b71f551fb168b5a88088"></script>
 </head>
 <body>
 <div id="controls">
-  <button id="connectBtn">连接获取最新数据</button>
+  <button id="connectBtn">连接</button>
+  <button id="disconnectBtn">断开</button>
   <button id="clearBtn">清除轨迹</button>
 </div>
 <div id="mapContainer"></div>
@@ -23,6 +23,8 @@
 let map;
 let markers = [];
 let polyline;
+let path = [];
+let intervalId = null;
 
 // 初始化地图
 function initMap(lat = 35.3136, lon = 108.065) {
@@ -34,33 +36,32 @@ function initMap(lat = 35.3136, lon = 108.065) {
     }
 }
 
-// 获取 GPS 数据
-async function fetchGPSData() {
+// 获取最新 GPS 数据（仅一条）
+async function fetchLatestGPS() {
     const res = await fetch('/api/gps');
     const data = await res.json();
-    return data.gps;
+    if (!data.gps || data.gps.length === 0) return null;
+    return data.gps[0];
 }
 
-// 绘制最新数据点并更新轨迹
-async function drawLatestGPS() {
-    const gpsData = await fetchGPSData();
-    if (!gpsData || gpsData.length === 0) {
-        alert('没有 GPS 数据');
-        return;
+// 添加最新点到轨迹
+async function addLatestPoint() {
+    const latest = await fetchLatestGPS();
+    if (!latest) return;
+
+    // 如果这是第一个点，初始化地图中心
+    if (path.length === 0) {
+        map.setCenter([latest.lon, latest.lat]);
     }
 
-    const latest = gpsData[0];
+    path.push([latest.lon, latest.lat]);
 
-    // 添加最新点标记
     const marker = new AMap.Marker({
         position: [latest.lon, latest.lat],
         map,
-        title: `最新位置: ${latest.time}`
+        title: `位置: ${latest.time}`
     });
     markers.push(marker);
-
-    // 绘制轨迹
-    const path = gpsData.map(item => [item.lon, item.lat]).reverse();
 
     if (polyline) {
         polyline.setPath(path);
@@ -79,21 +80,39 @@ async function drawLatestGPS() {
     map.setFitView();
 }
 
+// 连接：开始定时拉取
+function connect() {
+    if (intervalId) return; // 已经连接
+    addLatestPoint(); // 立即拉取最新点
+    intervalId = setInterval(addLatestPoint, 10000); // 每10秒拉取
+}
+
+// 断开：停止定时拉取
+function disconnect() {
+    if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+    }
+}
+
 // 清除轨迹和标记
 function clearTrajectory() {
+    disconnect();
     markers.forEach(m => m.setMap(null));
     markers = [];
     if (polyline) {
         polyline.setMap(null);
         polyline = null;
     }
+    path = [];
 }
 
-// 按钮事件绑定
-document.getElementById('connectBtn').addEventListener('click', drawLatestGPS);
+// 按钮绑定
+document.getElementById('connectBtn').addEventListener('click', connect);
+document.getElementById('disconnectBtn').addEventListener('click', disconnect);
 document.getElementById('clearBtn').addEventListener('click', clearTrajectory);
 
-// 初始化地图中心
+// 初始化地图
 initMap();
 </script>
 </body>
