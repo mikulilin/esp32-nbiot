@@ -39,6 +39,7 @@ let simulating = false;
 let connected = false;
 let following = false;
 let intervalId = null;
+let markers = [];
 
 const map = new AMap.Map('mapContainer', { zoom:16, center:defaultPos });
 const marker = new AMap.Marker({ position:defaultPos, map:map });
@@ -54,6 +55,9 @@ function clearPath() {
     polyline.setPath([defaultPos]);
     marker.setPosition(defaultPos);
     map.setCenter(defaultPos);
+    // 清除所有点标记
+    markers.forEach(m => m.setMap(null));
+    markers = [];
 }
 
 // 模拟按钮逻辑
@@ -68,6 +72,8 @@ simulateBtn.onclick = () => {
         marker.setPosition(defaultPos);
         map.setCenter(defaultPos);
         path = [];
+        markers.forEach(m => m.setMap(null));
+        markers = [];
     }
 }
 
@@ -132,12 +138,36 @@ async function fetchLatestGPS() {
 // 更新地图标记和轨迹
 function updateMarker(gps) {
     const pos = [parseFloat(gps.lon), parseFloat(gps.lat)];
-    marker.setPosition(pos);
-    map.setCenter(pos);
-    if (!path.length) path.push(pos); 
-    else path.push(pos);
+
+    // 更新折线轨迹
+    path.push(pos);
     polyline.setPath(path);
 
+    // 更新主标记位置（居中）
+    marker.setPosition(pos);
+    map.setCenter(pos);
+
+    // 添加单独的点标记，鼠标悬停显示时间
+    const pointMarker = new AMap.Marker({
+        position: pos,
+        map: map,
+        title: `时间: ${gps.time}`,
+        icon: new AMap.Icon({
+            size: new AMap.Size(8,8),
+            image: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png',
+            imageSize: new AMap.Size(8,8)
+        })
+    });
+
+    const infoWindow = new AMap.InfoWindow({
+        content: `时间: ${gps.time}`,
+        offset: new AMap.Pixel(0, -10)
+    });
+    pointMarker.on('mouseover', () => infoWindow.open(map, pos));
+
+    markers.push(pointMarker);
+
+    // 更新界面信息
     document.getElementById('longitude').innerText = `经度: ${pos[0].toFixed(6)}`;
     document.getElementById('latitude').innerText = `纬度: ${pos[1].toFixed(6)}`;
     document.getElementById('time').innerText = `时间: ${gps.time}`;
