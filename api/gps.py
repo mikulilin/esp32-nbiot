@@ -1,44 +1,47 @@
+import json
 import requests
-from datetime import datetime
-from flask import Flask, jsonify
 
-app = Flask(__name__)
+PRODUCT_ID = "dyLIMxujKq"      # 替换为你的 OneNET 产品ID
+DEVICE_NAME = "nbiot"          # 替换为你的设备名
+AUTH_TOKEN = "version=2018-10-31&res=products%2FdyLIMxujKq%2Fdevices%2Fnbiot&et=1798183737&method=md5&sign=w7deU9zmFKjLEVUb4umy6w%3D%3D"  # 替换为你的 token
 
-# 用户填写
-PRODUCT_ID = "dyLIMxujKq"
-DEVICE_NAME = "nbiot"
-AUTH_TOKEN = "version=2018-10-31&res=products%2FdyLIMxujKq%2Fdevices%2Fnbiot&et=1798183737&method=md5&sign=w7deU9zmFKjLEVUb4umy6w%3D%3D"
-
-def get_gps_history(product_id, device_name, auth_token, limit=50):
+def handler(request):
     url = "https://iot-api.heclouds.com/datapoint/history-datapoints"
     params = {
-        "product_id": product_id,
-        "device_name": device_name,
+        "product_id": PRODUCT_ID,
+        "device_name": DEVICE_NAME,
         "datastream_id": "GPS",
-        "limit": limit
+        "limit": 10  # 最新10条
     }
     headers = {
-        "Authorization": auth_token,
+        "Authorization": AUTH_TOKEN,
         "Accept": "application/json"
     }
 
-    response = requests.get(url, params=params, headers=headers)
-    data = response.json()
-    gps_list = []
+    try:
+        resp = requests.get(url, params=params, headers=headers)
+        data = resp.json()
+        gps_list = []
 
-    if data.get("code") == 0:
-        datastreams = data.get("data", {}).get("datastreams", [])
-        if datastreams:
-            for point in datastreams[0].get("datapoints", []):
-                value = point.get("value", {})
-                gps_list.append({
-                    "time": point.get("at"),
-                    "lat": value.get("lat"),
-                    "lon": value.get("lon")
-                })
-    return gps_list
+        if data.get("code") == 0:
+            datastreams = data.get("data", {}).get("datastreams", [])
+            if datastreams:
+                for point in datastreams[0].get("datapoints", []):
+                    value = point.get("value", {})
+                    gps_list.append({
+                        "time": point.get("at"),
+                        "lat": value.get("lat"),
+                        "lon": value.get("lon")
+                    })
 
-@app.route("/api/gps")
-def gps_api():
-    gps_data = get_gps_history(PRODUCT_ID, DEVICE_NAME, AUTH_TOKEN)
-    return jsonify({"code": 0, "gps": gps_data})
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"code": 0, "gps": gps_list}),
+            "headers": {"Content-Type": "application/json"}
+        }
+    except Exception as e:
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"code": -1, "error": str(e)}),
+            "headers": {"Content-Type": "application/json"}
+        }
