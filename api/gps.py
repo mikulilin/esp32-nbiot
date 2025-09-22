@@ -1,47 +1,42 @@
-import json
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 import requests
+from datetime import datetime
 
-PRODUCT_ID = "dyLIMxujKq"      # 替换为你的 OneNET 产品ID
-DEVICE_NAME = "nbiot"          # 替换为你的设备名
-AUTH_TOKEN = "version=2018-10-31&res=products%2FdyLIMxujKq%2Fdevices%2Fnbiot&et=1798183737&method=md5&sign=w7deU9zmFKjLEVUb4umy6w%3D%3D"  # 替换为你的 token
+app = FastAPI()
 
-def handler(request):
-    url = "https://iot-api.heclouds.com/datapoint/history-datapoints"
-    params = {
-        "product_id": PRODUCT_ID,
-        "device_name": DEVICE_NAME,
-        "datastream_id": "GPS",
-        "limit": 10  # 最新10条
-    }
-    headers = {
-        "Authorization": AUTH_TOKEN,
-        "Accept": "application/json"
-    }
+ONENET_DEVICE_ID = "你的设备ID"
+ONENET_API_KEY = "你的OneNET API Key"
+ONENET_DATASTREAM_ID = "GPS"
 
+MAX_HISTORY = 50  # 保留最多50条数据
+
+history_data = []
+
+@app.get("/api/gps")
+def get_gps():
+    global history_data
+    # 请求 OneNET 数据流最新数据
+    url = f"https://api.heclouds.com/devices/{ONENET_DEVICE_ID}/datapoints?datastream_id={ONENET_DATASTREAM_ID}&limit=1"
+    headers = {"api-key": ONENET_API_KEY}
+    
     try:
-        resp = requests.get(url, params=params, headers=headers)
-        data = resp.json()
-        gps_list = []
-
-        if data.get("code") == 0:
-            datastreams = data.get("data", {}).get("datastreams", [])
-            if datastreams:
-                for point in datastreams[0].get("datapoints", []):
-                    value = point.get("value", {})
-                    gps_list.append({
-                        "time": point.get("at"),
-                        "lat": value.get("lat"),
-                        "lon": value.get("lon")
-                    })
-
-        return {
-            "statusCode": 200,
-            "body": json.dumps({"code": 0, "gps": gps_list}),
-            "headers": {"Content-Type": "application/json"}
-        }
+        r = requests.get(url, headers=headers, timeout=5).json()
+        if "data" in r and "datastreams" in r["data"]:
+            points = r["data"]["datastreams"][0].get("datapoints", [])
+            for p in points:
+                gps_point = {
+                    "time": p.get("at", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                    "lat": p["value"]["lat"],
+                    "lon": p["value"]["lon"]
+                }
+                # 避免重复加入相同点
+                if len(history_data) == 0 or history_data[-1] != gps_point:
+                    history_data.append(gps_point)
+                    # 保持最多 MAX_HISTORY 条
+                    if len(history_data) > MAX_HISTORY:
+                        history_data.pop(0)
     except Exception as e:
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"code": -1, "error": str(e)}),
-            "headers": {"Content-Type": "application/json"}
-        }
+        print("OneNET 获取数据失败:", e)
+
+    return JSONResponse({"code": 0, "gps": history_data[::-1]})  # 最新在前
