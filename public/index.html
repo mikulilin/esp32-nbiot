@@ -3,120 +3,145 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GPS 实时轨迹</title>
-<style>
-  #mapContainer { width: 100%; height: 90vh; }
-  #controls { padding: 10px; text-align: center; }
-  button { margin: 5px; padding: 10px 20px; font-size: 16px; }
-</style>
+<title>ESP32 GPS 轨迹显示</title>
 <script src="https://webapi.amap.com/maps?v=2.0&key=99aaad9da054b71f551fb168b5a88088"></script>
+<style>
+  html, body { height:100%; margin:0; }
+  #mapContainer { width:100%; height:100%; }
+  #controls {
+    position: absolute;
+    top: 10px; left: 10px;
+    background: rgba(255,255,255,0.9);
+    padding: 10px; border-radius:5px;
+    z-index: 999;
+  }
+  #controls div { margin-bottom:5px; }
+  button { margin-right:5px; }
+</style>
 </head>
 <body>
-<div id="controls">
-  <button id="connectBtn">连接</button>
-  <button id="disconnectBtn">断开</button>
-  <button id="clearBtn">清除轨迹</button>
-</div>
 <div id="mapContainer"></div>
+<div id="controls">
+  <div id="status">状态: 未连接</div>
+  <div id="longitude">经度: --</div>
+  <div id="latitude">纬度: --</div>
+  <div id="time">时间: --</div>
+  <button id="connectBtn">连接 ESP32</button>
+  <button id="disconnectBtn">断开连接</button>
+  <button id="simulateBtn">开始模拟</button>
+  <button onclick="clearPath()">清除轨迹</button>
+</div>
 
 <script>
-let map;
-let markers = [];
-let polyline = null;
+const defaultPos = [108.073, 34.280];
 let path = [];
+let simulating = false;
+let connected = false;
+let following = false;
 let intervalId = null;
 
-// 初始化地图
-function initMap(lat = 35.3136, lon = 108.065) {
-    if (!map) {
-        map = new AMap.Map('mapContainer', {
-            center: [lon, lat],
-            zoom: 15
-        });
-    }
+const map = new AMap.Map('mapContainer', { zoom:16, center:defaultPos });
+const marker = new AMap.Marker({ position:defaultPos, map:map });
+const polyline = new AMap.Polyline({ path:[defaultPos], strokeColor:"#FF0000", strokeWeight:4, map:map });
+
+const statusDiv = document.getElementById('status');
+const connectBtn = document.getElementById('connectBtn');
+const disconnectBtn = document.getElementById('disconnectBtn');
+const simulateBtn = document.getElementById('simulateBtn');
+
+function clearPath() {
+    path = [];
+    polyline.setPath([defaultPos]);
+    marker.setPosition(defaultPos);
+    map.setCenter(defaultPos);
 }
 
-// 获取最新 GPS 数据（仅一条）
-async function fetchLatestGPS() {
-    try {
-        const res = await fetch('/api/gps');
-        const data = await res.json();
-        if (!data.gps || data.gps.length === 0) return null;
-        return data.gps[0];
-    } catch (err) {
-        console.error('获取GPS失败:', err);
-        return null;
-    }
-}
-
-// 添加最新点到轨迹
-async function addLatestPoint() {
-    const latest = await fetchLatestGPS();
-    if (!latest) return;
-
-    // 添加到轨迹数组
-    path.push([latest.lon, latest.lat]);
-
-    // 添加标记
-    const marker = new AMap.Marker({
-        position: [latest.lon, latest.lat],
-        map,
-        title: `位置: ${latest.time}`
-    });
-    markers.push(marker);
-
-    // 绘制或更新折线
-    if (!polyline) {
-        polyline = new AMap.Polyline({
-            path: path,
-            borderWeight: 2,
-            strokeColor: '#FF33FF',
-            strokeOpacity: 0.8,
-            strokeWeight: 4,
-            lineJoin: 'round',
-            map: map
-        });
+// 模拟按钮逻辑
+simulateBtn.onclick = () => {
+    simulating = !simulating;
+    simulateBtn.innerText = simulating ? "停止模拟" : "开始模拟";
+    if (simulating) {
+        connected = false;
+        following = false;
+        statusDiv.innerText = "状态: 模拟中";
     } else {
-        polyline.setPath(path);
+        marker.setPosition(defaultPos);
+        map.setCenter(defaultPos);
+        path = [];
     }
-
-    map.setFitView();
 }
 
-// 连接：开始定时拉取
-function connect() {
-    if (intervalId) return; // 已经连接
-    addLatestPoint(); // 立即获取一次
-    intervalId = setInterval(addLatestPoint, 5000); // 每5秒获取最新点
+// 点击连接 ESP32
+connectBtn.onclick = async () => {
+    if (simulating) return;
+
+    try {
+        const latest = await fetchLatestGPS();
+        if (!latest) {
+            connected = false;
+            following = false;
+            statusDiv.innerText = "状态: 未连接（ESP32 未上传数据）";
+            return;
+        }
+        connected = true;
+        following = true;
+        statusDiv.innerText = "状态: 已连接 ESP32";
+        path = [[latest.lon, latest.lat]]; // 以最新点为起点
+        updateMarker(latest);
+
+        // 每5秒自动获取最新点
+        if (intervalId) clearInterval(intervalId);
+        intervalId = setInterval(async () => {
+            const gps = await fetchLatestGPS();
+            if (gps) updateMarker(gps);
+        }, 5000);
+
+    } catch(e) {
+        connected = false;
+        following = false;
+        statusDiv.innerText = "状态: 连接失败";
+        console.error(e);
+    }
 }
 
-// 断开：停止定时拉取
-function disconnect() {
+// 点击断开连接
+disconnectBtn.onclick = () => {
+    following = false;
+    connected = false;
+    statusDiv.innerText = "状态: 已断开连接";
     if (intervalId) {
         clearInterval(intervalId);
         intervalId = null;
     }
 }
 
-// 清除轨迹和标记
-function clearTrajectory() {
-    disconnect();
-    markers.forEach(m => m.setMap(null));
-    markers = [];
-    if (polyline) {
-        polyline.setMap(null);
-        polyline = null;
+// 获取最新 GPS 数据
+async function fetchLatestGPS() {
+    try {
+        const res = await fetch('/api/gps');
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (!data.gps || data.gps.length === 0) return null;
+        return data.gps[0]; // 最新点
+    } catch (e) {
+        console.warn("获取ESP32数据失败:", e);
+        return null;
     }
-    path = [];
 }
 
-// 按钮绑定
-document.getElementById('connectBtn').addEventListener('click', connect);
-document.getElementById('disconnectBtn').addEventListener('click', disconnect);
-document.getElementById('clearBtn').addEventListener('click', clearTrajectory);
+// 更新地图标记和轨迹
+function updateMarker(gps) {
+    const pos = [parseFloat(gps.lon), parseFloat(gps.lat)];
+    marker.setPosition(pos);
+    map.setCenter(pos);
+    if (!path.length) path.push(pos); 
+    else path.push(pos);
+    polyline.setPath(path);
 
-// 初始化地图
-initMap();
+    document.getElementById('longitude').innerText = `经度: ${pos[0].toFixed(6)}`;
+    document.getElementById('latitude').innerText = `纬度: ${pos[1].toFixed(6)}`;
+    document.getElementById('time').innerText = `时间: ${gps.time}`;
+}
 </script>
 </body>
 </html>
