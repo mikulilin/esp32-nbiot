@@ -1,11 +1,11 @@
 {
-  "functions": {
-    "api/gps.py": {
-      "runtime": "python3.10"
-    }
-  },
+  "version": 2,
+  "builds": [
+    { "src": "api/*.py", "use": "@vercel/python" },
+    { "src": "public/*.html", "use": "@vercel/static" }
+  ],
   "routes": [
-    { "src": "/api/gps", "dest": "api/gps.py" },
-    { "src": "/(.*)", "dest": "public/index.html" }
+    { "src": "/api/(.*)", "dest": "api/$1" },
+    { "src": "/(.*)", "dest": "public/$1" }
   ]
 }
