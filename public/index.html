@@ -9,7 +9,8 @@
   #controls { padding: 10px; text-align: center; }
   button { margin: 5px; padding: 10px 20px; font-size: 16px; }
 </style>
-<script src="https://webapi.amap.com/maps?v=2.0&key=你的高德Key"></script>
+<!-- 高德地图 JS API -->
+<script src="https://webapi.amap.com/maps?v=2.0&key=99aaad9da054b71f551fb168b5a88088"></script>
 </head>
 <body>
 <div id="controls">
@@ -23,6 +24,7 @@ let map;
 let markers = [];
 let polyline;
 
+// 初始化地图
 function initMap(lat = 35.3136, lon = 108.065) {
     if (!map) {
         map = new AMap.Map('mapContainer', {
@@ -32,12 +34,14 @@ function initMap(lat = 35.3136, lon = 108.065) {
     }
 }
 
+// 获取 GPS 数据
 async function fetchGPSData() {
     const res = await fetch('/api/gps');
     const data = await res.json();
     return data.gps;
 }
 
+// 绘制最新数据点并更新轨迹
 async function drawLatestGPS() {
     const gpsData = await fetchGPSData();
     if (!gpsData || gpsData.length === 0) {
@@ -47,7 +51,7 @@ async function drawLatestGPS() {
 
     const latest = gpsData[0];
 
-    // 在地图上添加最新点标记
+    // 添加最新点标记
     const marker = new AMap.Marker({
         position: [latest.lon, latest.lat],
         map,
@@ -58,7 +62,6 @@ async function drawLatestGPS() {
     // 绘制轨迹
     const path = gpsData.map(item => [item.lon, item.lat]).reverse();
 
-    // 如果已有 polyline 就更新路径
     if (polyline) {
         polyline.setPath(path);
     } else {
@@ -86,10 +89,11 @@ function clearTrajectory() {
     }
 }
 
+// 按钮事件绑定
 document.getElementById('connectBtn').addEventListener('click', drawLatestGPS);
 document.getElementById('clearBtn').addEventListener('click', clearTrajectory);
 
-// 初始化地图中心点
+// 初始化地图中心
 initMap();
 </script>
 </body>
