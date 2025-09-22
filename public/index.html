@@ -1,70 +1,54 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>ESP32 GPS 轨迹展示</title>
+    <title>ESP32 GPS 轨迹</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        html, body, #mapContainer {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-        }
+        #mapContainer { width: 100%; height: 100vh; }
     </style>
-    <!-- 高德地图 JS API -->
-    <script src="https://webapi.amap.com/maps?v=2.0&key=99aaad9da054b71f551fb168b5a88088"></script>
+    <script src="https://webapi.amap.com/maps?v=2.0&key=你的高德Key"></script>
 </head>
 <body>
 <div id="mapContainer"></div>
-
 <script>
-const map = new AMap.Map('mapContainer', {
-    zoom: 10,
-    center: [108.065, 35.3136]
-});
-
 async function fetchGPS() {
     try {
         const res = await fetch('/api/gps');
         const data = await res.json();
-
-        if (data.code !== 0) throw new Error('获取 GPS 数据失败');
-
-        const gpsList = data.gps;
-        if (!gpsList.length) return;
-
-        const path = gpsList.map(p => [p.lon, p.lat]);
-
-        const polyline = new AMap.Polyline({
-            path: path,
-            borderWeight: 2,
-            strokeColor: '#FF33FF',
-            strokeOpacity: 0.8,
-            strokeWeight: 4,
-            lineJoin: 'round'
-        });
-        polyline.setMap(map);
-
-        gpsList.forEach((point, index) => {
-            new AMap.Marker({
-                position: [point.lon, point.lat],
-                title: `时间: ${point.time}`,
-                label: {
-                    content: index === 0 ? '起点' : index === gpsList.length - 1 ? '终点' : '',
-                    direction: 'top'
-                },
-                map: map
-            });
-        });
-
-        map.setFitView();
-    } catch (err) {
-        console.error('获取数据失败:', err);
+        return data.gps || [];
+    } catch(e) {
+        console.error("获取GPS失败", e);
+        return [];
     }
 }
 
-fetchGPS();
+async function initMap() {
+    const gpsPoints = await fetchGPS();
+    if (!gpsPoints.length) return alert("没有GPS数据");
+
+    const center = [gpsPoints[0].lon, gpsPoints[0].lat];
+    const map = new AMap.Map('mapContainer', {
+        zoom: 14,
+        center: center
+    });
+
+    const path = gpsPoints.map(p => [p.lon, p.lat]);
+
+    new AMap.Polyline({
+        map,
+        path,
+        borderWeight: 2,
+        strokeColor: '#FF33FF',
+        lineJoin: 'round',
+        lineCap: 'round'
+    });
+
+    new AMap.Marker({ map, position: path[0], title: '起点' });
+    new AMap.Marker({ map, position: path[path.length - 1], title: '终点' });
+}
+
+initMap();
 </script>
 </body>
 </html>
