@@ -2,53 +2,60 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>ESP32 GPS 轨迹</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS 轨迹显示</title>
     <style>
         #mapContainer { width: 100%; height: 100vh; }
     </style>
     <script src="https://webapi.amap.com/maps?v=2.0&key=你的高德Key"></script>
 </head>
 <body>
-<div id="mapContainer"></div>
-<script>
-async function fetchGPS() {
-    try {
-        const res = await fetch('/api/gps');
-        const data = await res.json();
-        return data.gps || [];
-    } catch(e) {
-        console.error("获取GPS失败", e);
-        return [];
-    }
-}
+    <div id="mapContainer"></div>
+    <script>
+        async function fetchGPSData() {
+            const res = await fetch('/api/gps');
+            const data = await res.json();
+            return data.gps;
+        }
 
-async function initMap() {
-    const gpsPoints = await fetchGPS();
-    if (!gpsPoints.length) return alert("没有GPS数据");
+        async function initMap() {
+            const gpsData = await fetchGPSData();
 
-    const center = [gpsPoints[0].lon, gpsPoints[0].lat];
-    const map = new AMap.Map('mapContainer', {
-        zoom: 14,
-        center: center
-    });
+            if (!gpsData || gpsData.length === 0) {
+                alert('没有 GPS 数据');
+                return;
+            }
 
-    const path = gpsPoints.map(p => [p.lon, p.lat]);
+            const latest = gpsData[0];
+            const map = new AMap.Map('mapContainer', {
+                center: [latest.lon, latest.lat],
+                zoom: 15
+            });
 
-    new AMap.Polyline({
-        map,
-        path,
-        borderWeight: 2,
-        strokeColor: '#FF33FF',
-        lineJoin: 'round',
-        lineCap: 'round'
-    });
+            // 最新点标记
+            new AMap.Marker({
+                position: [latest.lon, latest.lat],
+                map,
+                title: `最新位置: ${latest.time}`
+            });
 
-    new AMap.Marker({ map, position: path[0], title: '起点' });
-    new AMap.Marker({ map, position: path[path.length - 1], title: '终点' });
-}
+            // 绘制轨迹
+            const path = gpsData.map(item => [item.lon, item.lat]).reverse();
+            const polyline = new AMap.Polyline({
+                path: path,
+                borderWeight: 2,
+                strokeColor: '#FF33FF',
+                strokeOpacity: 0.8,
+                strokeWeight: 4,
+                lineJoin: 'round'
+            });
+            map.add(polyline);
+            map.setFitView();
+        }
 
-initMap();
-</script>
+        initMap();
+        // 每隔30秒刷新轨迹
+        setInterval(initMap, 30000);
+    </script>
 </body>
 </html>
