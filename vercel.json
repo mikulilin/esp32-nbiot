@@ -1,5 +1,11 @@
 {
+  "functions": {
+    "api/gps.py": {
+      "runtime": "python3.10"
+    }
+  },
   "routes": [
-    { "src": "/(.*)", "dest": "api/gps.py" }
+    { "src": "/api/gps", "dest": "api/gps.py" },
+    { "src": "/(.*)", "dest": "public/index.html" }
   ]
 }
