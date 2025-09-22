@@ -7,6 +7,7 @@
     <style>
         #mapContainer { width: 100%; height: 100vh; }
     </style>
+    <!-- 高德地图 JS API -->
     <script src="https://webapi.amap.com/maps?v=2.0&key=你的高德Key"></script>
 </head>
 <body>
@@ -26,7 +27,10 @@
                 return;
             }
 
+            // 最新点
             const latest = gpsData[0];
+
+            // 初始化地图
             const map = new AMap.Map('mapContainer', {
                 center: [latest.lon, latest.lat],
                 zoom: 15
@@ -50,11 +54,13 @@
                 lineJoin: 'round'
             });
             map.add(polyline);
+
+            // 调整视野显示所有轨迹点
             map.setFitView();
         }
 
         initMap();
-        // 每隔30秒刷新轨迹
+        // 每隔30秒刷新
         setInterval(initMap, 30000);
     </script>
 </body>
