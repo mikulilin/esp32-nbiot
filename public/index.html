@@ -22,7 +22,7 @@
 <script>
 let map;
 let markers = [];
-let polyline;
+let polyline = null;
 let path = [];
 let intervalId = null;
 
@@ -38,10 +38,15 @@ function initMap(lat = 35.3136, lon = 108.065) {
 
 // 获取最新 GPS 数据（仅一条）
 async function fetchLatestGPS() {
-    const res = await fetch('/api/gps');
-    const data = await res.json();
-    if (!data.gps || data.gps.length === 0) return null;
-    return data.gps[0];
+    try {
+        const res = await fetch('/api/gps');
+        const data = await res.json();
+        if (!data.gps || data.gps.length === 0) return null;
+        return data.gps[0];
+    } catch (err) {
+        console.error('获取GPS失败:', err);
+        return null;
+    }
 }
 
 // 添加最新点到轨迹
@@ -49,13 +54,10 @@ async function addLatestPoint() {
     const latest = await fetchLatestGPS();
     if (!latest) return;
 
-    // 如果这是第一个点，初始化地图中心
-    if (path.length === 0) {
-        map.setCenter([latest.lon, latest.lat]);
-    }
-
+    // 添加到轨迹数组
     path.push([latest.lon, latest.lat]);
 
+    // 添加标记
     const marker = new AMap.Marker({
         position: [latest.lon, latest.lat],
         map,
@@ -63,9 +65,8 @@ async function addLatestPoint() {
     });
     markers.push(marker);
 
-    if (polyline) {
-        polyline.setPath(path);
-    } else {
+    // 绘制或更新折线
+    if (!polyline) {
         polyline = new AMap.Polyline({
             path: path,
             borderWeight: 2,
@@ -75,6 +76,8 @@ async function addLatestPoint() {
             lineJoin: 'round',
             map: map
         });
+    } else {
+        polyline.setPath(path);
     }
 
     map.setFitView();
@@ -83,8 +86,8 @@ async function addLatestPoint() {
 // 连接：开始定时拉取
 function connect() {
     if (intervalId) return; // 已经连接
-    addLatestPoint(); // 立即拉取最新点
-    intervalId = setInterval(addLatestPoint, 10000); // 每10秒拉取
+    addLatestPoint(); // 立即获取一次
+    intervalId = setInterval(addLatestPoint, 5000); // 每5秒获取最新点
 }
 
 // 断开：停止定时拉取
